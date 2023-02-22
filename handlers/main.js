@@ -1,7 +1,7 @@
 const Hash = require('../utility/hash.js'), User = require('../models/user.js'),
-	  {checkEmail, checkPassword, checkPhoneNumber} = require('../utility/creds.js'),
+	  {checkAge, checkEmail, checkPassword, checkPhoneNumber} = require('../utility/creds.js'),
 	  {v4:uuid} = require('uuid'), db = require('../data/main.js'),
-	  {assignToken} = require('../models/token.js'), container = require('../di/main.js');
+	  {invalidate, assignToken} = require('../models/token.js'), container = require('../di/main.js');
 
 class handles{
 	static async postSignup(req, res){
@@ -28,6 +28,12 @@ class handles{
 	        if (!checkPhoneNumber(user.phoneNumber)) {
 	            return res.status(400).send({
 	                status: 'error',
+	                message: 'invalid age'
+	            });
+	        }
+	        if (!checkAge(user.age)) {
+	            return res.status(400).send({
+	                status: 'error',
 	                message: 'invalid phone number'
 	            });
 	        }
@@ -38,14 +44,15 @@ class handles{
 	            });
 	        }
 	        user.userId = uuid();
-	        const error = await db.createUser(user);
-	        if (error) {
+	        const {error, hps} = await db.createUser(user);
+	        if (error || !hps) {
 	            return res.status(500).send({
 	                status: 'error', message: error
 	            });
 	        }
+	        user.password = hps.password, user.salt = hps.salt;
 	        assignToken(user);
-	        res.status(200).send({ status: 'ok' });
+	        res.status(200).send({ status: 'ok', token: user.token});
 		}
 		catch(error){
 			console.log(1, error);
@@ -62,17 +69,16 @@ class handles{
 	                message: 'login information not provided'
 	            });
 	        }
-	        const { error, data} = await db.userExists(email, password);
+	        const { error, data } = await db.userExists(email, password);
 	        if (error || !data) {
 	            return res.status(500).send({
 	                status: 'error',
 	                message: error
 	            });
 	        }
-	        const user = new user(data);
-	        user.userId = data.userId;
+	        const user = new User(data);
 	        assignToken(user);
-	        res.status(200).send({ status: 'ok' });
+	        res.status(200).send({ status: 'ok', token: user.token });
 	    }
 	    catch (error) {
 	        console.log(2, error);
@@ -85,19 +91,29 @@ class handles{
 		res.status(200).send({ status:'ok' });
 	}
 
-	static async putUser(req, res){
+	static async putUser(req, res, next){
 		try{
-			const user = req.user;
-			for(const field of container.resolve(allowedUpdates)){
+			const user = {};
+			const encFieldsSet = container.resolve('encryptedFields');
+			const allowedFields = container.resolve('allowedUpdates');
+			const crypt = container.resolve('crypt');
+
+			for(const field of allowedFields){
 				if(req.body[field]){
-					user[field] = req.body[field];
+					let val = req.body[field];
+					if(encFieldsSet.has(field)){
+						val = crypt.encrypt(val);
+					}
+					user[field] = val;
 				}
-			}
-			const error = await db.updateUser(user);
+			} // further validation of fields required
+			const error = await db.updateUser(req.user.userId, user);
 			if(error){
-				return res.status(500).send({status:'error', message:error});
+				console.log(error);
+				return res.status(500).send({status:'error', message: error});
 			}
-			res.status(200).send({status:'ok'});
+			next();
+			//res.status(200).send({status:'ok'});
 		}
 		catch(error){
 			console.log(3, error);
@@ -105,30 +121,28 @@ class handles{
 		}
 	}
 
-	static async postPassword(req, res){
+	static async putPassword(req, res, next){
 		try{
-			const {givenOldPassword, newPassword} = req.body;
-			if(!givenOldPassword || !newPassword){
+			const {oldPassword, newPassword} = req.body;
+			if(!oldPassword || !newPassword){
 				return res.status(400).send({status:'error', message:'Either or both of old and new passwords are missing!'});
 			}
-			if(!checkpassword(newPassword)){
+			if(!checkPassword(newPassword)){
 				return res.status(400).send({
 	                status: 'error',
 	                message: 'weak password'
 	            });
 			}
-			let { error, data} = await db.userExists(email, password);
-			if(error || !data){
-				return res.status(500).send({status:'error', message: error});
+			const correctPasswordProvided = await Hash.check(oldPassword, req.user.salt, req.user.password);
+			if(!correctPasswordProvided){
+				return res.status(400).send({status: 'error', message: 'wrong current password provided'});
 			}
-			if(!Hash.check(newPassword, data.salt, data.password)){
-				return res.status(404).send({status:'error', message: 'Provided password does not match the existing password!'});
-			}
-			error = await db.updatePassword(user.userId, newPassword);
+			const error = await db.updatePassword(req.user, newPassword);
 			if(error){
 				return res.status(500).send({status:'error', message: error});
 			}
-			res.status(200).send({status:'ok'});
+			next();
+			//res.status(200).send({status:'ok'});
 		}
 		catch(error){
 			console.log(4, error);

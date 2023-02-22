@@ -1,6 +1,8 @@
 const MongoClient = require('mongodb').MongoClient,
-      crypto = new (require('../utility/crypt.js')),
-      Hash = require('../utility/hash.js');
+      Hash = require('../utility/hash.js'),
+      container = require('../di/main.js');
+
+const crypt = container.resolve('crypt');
 
 const uri = `mongodb://${process.env.DBHOST}:${process.env.DBPORT}/${process.env.DBNAME}`;
 
@@ -22,11 +24,15 @@ const init = async () => {
   }
 };
 
-const verifyCredentials = async ({email}) => {
+const verifyCredentials = async ({email, phoneNumber}) => {
   let returnValue = false;
   try{
     const users = db.collection('users');
-    const user = await users.findOne({ email: crypto.encrypt(email) });
+    const user = await users.findOne({
+      $or: [
+        { email: crypt.encrypt(email) },
+        { phoneNumber: crypt.encrypt(phoneNumber) }
+        ] } );
     if (user) {
       returnValue = true;
     }
@@ -42,10 +48,10 @@ const userExists = async (email, password) => {
   let returnValue={error: 'user could not be found'};
   try {
     const users = db.collection('users');
-    const user = await users.findOne( { email: crypto.encrypt(email) } );
-    if (user && Hash.check(password, user.salt, user.password)){
-        delete user._id, delete user.password, delete user.salt;
-        returnValue = { user };
+    const user = await users.findOne( { email: crypt.encrypt(email) } );
+    if (user && await Hash.check(password, user.salt, user.password)){
+        delete user._id
+        returnValue = { data: user };
     }
   }
   catch (error) {
@@ -55,58 +61,51 @@ const userExists = async (email, password) => {
 };
 
 const createUser = async user => {
-  let returnValue = null;
+  let returnValue = {};
   try {
     const users = db.collection('users');
     const hps = await Hash.hash(user.password);
     await users.insertOne({
-      userId: user.userId, firstName: crypto.encrypt(user.firstName),
-      lastName: crypto.encrypt(user.lastName), salt: hps.salt,
-      email: crypto.encrypt(user.email), password: hps.password,
-      age: user.age, phoneNumber: crypto.encrypt(user.phoneNumber)
+      userId: user.userId, firstName: crypt.encrypt(user.firstName),
+      lastName: crypt.encrypt(user.lastName), salt: hps.salt,
+      email: crypt.encrypt(user.email), password: hps.password,
+      age: user.age, phoneNumber: crypt.encrypt(user.phoneNumber)
     });
+    returnValue = {hps};
   } catch (error) {
     console.log(error);
+    returnValue = {error};
+  }
+  return returnValue;
+};
+
+const updateUser = async (userId, user) => {
+  let returnValue = null;
+  try {
+    const users = db.collection('users');
+    const result = await users.updateOne({ userId }, { $set: user });
+    if (result.matchedCount !== 1){
+      returnValue = 'user not found';
+    }
+  } catch (error) {
     returnValue = error;
   }
   return returnValue;
 };
 
-const updateUser = async user => {
-  let returnValue = false;
-  try {
-    const setObj = {};
-    for(const key of user){
-      if(user[key]){
-        setObj[key] = user[key];
-      }
-    }
-    const users = db.collection('users');
-    const result = await users.updateOne({userId: user.userId}, { $set: setObj });
-    if (result.matchedCount !== 1){
-      returnValue = true;
-    }
-  } catch (error) {
-    returnValue = true;
-  }
-  return returnValue;
-};
-
-const updatePassword = async (userId, password) => {
+const updatePassword = async (user, newPassword) => {
   let returnValue = 'user not found';
   try{
     const users = db.collection('users');
-    const salt = await db.findOne({userId}, {projection: { salt: 1 }});
-    if(salt){
-      const hps = await Hash.hash(password, salt);
-      const result = await users.updateOne({ userId }, { $set: { password: hps.password } });
-      if (result.matchedCount === 1){
-        returnValue = null;
-      }
+    const hps = await Hash.hash(newPassword, user.salt);
+    const result = await users.updateOne({ userId: user.userId }, { $set: { password: hps.password } });
+    if (result.matchedCount === 1){
+      returnValue = null;
     }
   }
   catch(error){
-    returnValue = {error};
+    console.log(error);
+    returnValue = error;
   }
   return returnValue;
 }
@@ -120,4 +119,7 @@ const truncate = async () => {
   }
 }
 
-module.exports={ init, verifyCredentials, userExists, createUser };
+module.exports={
+  init, verifyCredentials, userExists,
+  createUser, updateUser, updatePassword
+};

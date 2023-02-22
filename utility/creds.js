@@ -6,6 +6,8 @@ const checkPhoneNumber = phoneNumber => phoneNumberPattern.test(phoneNumber);
 
 const checkEmail = email => emailPattern.test(email);
 
+const checkAge = age => (age && !isNaN(age) && age>-1 && age<200);
+
 const checkPassword = password => {
     if (password.length < 6) {
         return false;
@@ -30,4 +32,5 @@ const checkPassword = password => {
 }
 
 
-module.exports = { checkEmail, checkPassword, checkPhoneNumber };
+module.exports = { checkEmail, checkPassword,
+                   checkPhoneNumber, checkAge };

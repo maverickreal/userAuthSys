@@ -14,9 +14,8 @@ class Hash {
   }
 
   static async check(newPassword, salt, existingHash) {
-    console.log(newPassword, salt, existingHash);
-    const npHash = await Hash.hash(newPassword, salt);
-    return (npHash === existingHash ? true : false);
+    const {password: npHash} = await Hash.hash(newPassword, salt);
+    return (npHash === existingHash);
   }
 }
 
