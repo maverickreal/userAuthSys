@@ -8,11 +8,6 @@ class Token{
           process.env.JWTSECRETKEY,
           { expiresIn: '7d' }
           );
-    // const jwtToken = sign(
-    //   {data: 'foobar'},
-    //   'secret',
-    //   { expiresIn: '7d' }
-    //   );
       user.token = jwtToken;
       Token.uidToJwt[user.userId] = jwtToken;
   }

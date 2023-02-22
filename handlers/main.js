@@ -1,7 +1,7 @@
-const {check} = require('../utility/hash.js'), User = require('../models/user.js'),
+const Hash = require('../utility/hash.js'), User = require('../models/user.js'),
 	  {checkEmail, checkPassword, checkPhoneNumber} = require('../utility/creds.js'),
 	  {v4:uuid} = require('uuid'), db = require('../data/main.js'),
-	  {assignToken} = require('../models/token.js'), {allowedUpdates} = 
+	  {assignToken} = require('../models/token.js'), container = require('../di/main.js');
 
 class handles{
 	static async postSignup(req, res){
@@ -45,11 +45,7 @@ class handles{
 	            });
 	        }
 	        assignToken(user);
-	        delete user.userId, delete user.password;
-	        res.status(200).send({
-	        	status: 'ok',
-	        	message: user
-	        });
+	        res.status(200).send({ status: 'ok' });
 		}
 		catch(error){
 			console.log(1, error);
@@ -76,11 +72,7 @@ class handles{
 	        const user = new user(data);
 	        user.userId = data.userId;
 	        assignToken(user);
-	        delete user.userId, delete user.password;
-	        res.status(200).send({
-	            status: 'ok',
-	            message: user
-	        });
+	        res.status(200).send({ status: 'ok' });
 	    }
 	    catch (error) {
 	        console.log(2, error);
@@ -95,10 +87,10 @@ class handles{
 
 	static async putUser(req, res){
 		try{
-			const user  = req.user;
-			for(const field of updatesAllowed){
+			const user = req.user;
+			for(const field of container.resolve(allowedUpdates)){
 				if(req.body[field]){
-					user[field] = req.body[field]; // exp
+					user[field] = req.body[field];
 				}
 			}
 			const error = await db.updateUser(user);
@@ -126,16 +118,15 @@ class handles{
 	            });
 			}
 			let { error, data} = await db.userExists(email, password);
-			if(error){
-				return res.status(500).send({status:'error', message:error});
+			if(error || !data){
+				return res.status(500).send({status:'error', message: error});
 			}
-			if(!check(newPassword, data.password)){
-				return res.status(404).send({status:'error', message:'Provided password does not match the existing password!'});
+			if(!Hash.check(newPassword, data.salt, data.password)){
+				return res.status(404).send({status:'error', message: 'Provided password does not match the existing password!'});
 			}
-			user.password = newPassword;
-			error = await db.updateUser(user);
+			error = await db.updatePassword(user.userId, newPassword);
 			if(error){
-				return res.status(500).send({status:'error', message:error});
+				return res.status(500).send({status:'error', message: error});
 			}
 			res.status(200).send({status:'ok'});
 		}

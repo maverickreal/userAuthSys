@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
-    "dev": "TRUNCATE=true PORT=3000 DBHOST=127.0.0.1 DBPORT=27017 DBNAME=userauthsys JWTSECRETKEY=jwtsk nodemon index.js"
-  },
+  "scripts": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/maverickreal/userAuthSys.git"
