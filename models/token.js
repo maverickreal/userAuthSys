@@ -4,10 +4,15 @@ class Token{
   static uidToJwt = {};
 
   static assignToken(user){
-      const jwtToken = sign(user,
+      const jwtToken = sign(user.getObj(),
           process.env.JWTSECRETKEY,
           { expiresIn: '7d' }
           );
+    // const jwtToken = sign(
+    //   {data: 'foobar'},
+    //   'secret',
+    //   { expiresIn: '7d' }
+    //   );
       user.token = jwtToken;
       Token.uidToJwt[user.userId] = jwtToken;
   }

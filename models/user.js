@@ -1,12 +1,19 @@
 class User{
-	constructor(id, fName, lName, Age, Email, phonenum, Password){
-		this.userId = id;
-		this.firstName = fName;
-		this.lastName = lName;
-		this.age = Age;
-		this.email = Email;
-		this.phoneNumber = phonenum;
-		this.password = Password
+	constructor({userId, firstName, lastName, age, email, phoneNumber, password}){
+		this.userId = userId;
+		this.firstName = firstName;
+		this.lastName = lastName;
+		this.age = age;
+		this.email = email;
+		this.phoneNumber = phoneNumber;
+		this.password = password
+	}
+	getObj(){
+		return {
+			userId: this.userId, firstName: this.firstName, lastName: this.lastName,
+			age: this.age, email: this.email, phoneNumber: this.phoneNumber,
+			password:this.password
+		}
 	}
 }
 

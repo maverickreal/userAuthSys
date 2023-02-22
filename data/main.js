@@ -14,6 +14,7 @@ const init = async () => {
     await client.connect();
     db = client.db(process.env.DBNAME);
     if(process.env.TRUNCATE==='true'){
+      console.log('Flushing data!');
       await truncate();
     }
   } catch (error) {
@@ -23,16 +24,18 @@ const init = async () => {
 
 const verifyCredentials = async ({email, password}) => {
   let returnValue = false;
-  try {
+  try{
+    const hp = await hash(password);
     const users = db.collection('users');
     const user = await users.findOne({ $or: [ {
       email: crypto.encrypt(email),
-      password: hash(password)
-    } ] });
+      password: hp
+      } ] });
     if (user) {
       returnValue = true;
     }
-  } catch (error) {
+  }
+  catch(error){
     console.log(error);
   }
   return returnValue;
@@ -42,9 +45,10 @@ const userExists = async ({email, password}) => {
   let returnValue={};
   try {
     const users = db.collection('users');
+    const hp = await hash(password);
     const user = await users.findOne( {
       email: crypto.encrypt(email),
-      password: hash(password)
+      password: hp
     } );
     if (user) {
       delete user._id, delete user.password;
@@ -58,38 +62,41 @@ const userExists = async ({email, password}) => {
   return returnValue;
 };
 
-const createUser = async ({userId, firstName, lastName, email, password, age, phoneNumber}) => {
-  let returnValue = {};
+const createUser = async user => {
+  let returnValue = null;
   try {
     const users = db.collection('users');
+    const hp = await hash(user.password);
     await users.insertOne({
-      userId, firstName: crypto.encrypt(firstNname),
-      lastName: crypto.encrypt(lastName),
-      email: crypto.encrypt(email), password: hash(password),
-      age, phoneNumber: crypto.encrypt(phoneNumber)
+      userId: user.userId, firstName: crypto.encrypt(user.firstName),
+      lastName: crypto.encrypt(user.lastName),
+      email: crypto.encrypt(user.email), password: hp,
+      age: user.age, phoneNumber: crypto.encrypt(user.phoneNumber)
     });
-    returnValue.user = { age, phoneNumber, firstName, lastName, email, userId };
   } catch (error) {
-    returnValue = { error };
+    console.log(error);
+    returnValue = error;
   }
   return returnValue;
 };
 
-const updateUser = async ({userId, firstName, lastName, age}) => {
-  let returnValue = null;
+const updateUser = async user => {
+  let returnValue = false;
   try {
+    const setObj = {};
+    for(const key of user){
+      if(user[key]){
+        setObj[key] = user[key];
+      }
+    }
+    console.log(setObj);
     const users = db.collection('users');
-    const result = await users.updateOne({userId}, { $set: {
-      firstName: crypto.encrypt(firstName),
-      lastName: crypto.encrypt(lastName), age
-    } });
-    if (result.matchedCount === 1) {
-      returnValue.user = { age, firstName, lastName, userId };
-    } else {
-      returnValue = { error: 'user could not be found' };
+    const result = await users.updateOne({userId: user.userId}, { $set: setObj });
+    if (result.matchedCount !== 1){
+      returnValue = true;
     }
   } catch (error) {
-    returnValue = { error };
+    returnValue = true;
   }
   return returnValue;
 };

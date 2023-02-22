@@ -1,9 +1,7 @@
-const {check} = require('../utility/hash.js'),
-	  User = require('../models/user.js'),
-	  {checkEmail, checkpassword, checkPhoneNumber} = require('../utility/creds.js'),
-	  {v4:uuid} = require('uuid');
-
-const updatesAllowed = ['firstName', 'lastName', 'age'];
+const {check} = require('../utility/hash.js'), User = require('../models/user.js'),
+	  {checkEmail, checkPassword, checkPhoneNumber} = require('../utility/creds.js'),
+	  {v4:uuid} = require('uuid'), db = require('../data/main.js'),
+	  {assignToken} = require('../models/token.js'), {allowedUpdates} = 
 
 class handles{
 	static async postSignup(req, res){
